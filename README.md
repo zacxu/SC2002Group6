@@ -1,4 +1,4 @@
-# SC2002Group6
+# SC2002 Group6 
 ## AY2025/26 Semester 1 SC2002 Group Project - Internship Placement Management System (IPMS)
 
 Internship Placement Management System (IPMS) is a Java console application that utilizes object-oriented concepts to efficiently manage internships. The program is designed with a focus on reusability, extensibility, and maintainability, allowing for easy upgrades and future development. It provides flexibility to accommodate different user types and their requirements.
