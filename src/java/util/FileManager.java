@@ -39,20 +39,18 @@ public class FileManager {
      
         try (BufferedReader reader = Files.newBufferedReader(path)) {
             String line = reader.readLine(); 
-
             while ((line = reader.readLine()) != null) {
                 if (line.trim().isEmpty()) continue;
 
                 String[] parts = line.split(",");
 
-                if (parts.length >= 5) {
-
+                if (parts.length >= 4) {
                     String userId = parts[0].trim();
                     String name = parts[1].trim();
-                    String password = parts[2].trim();
+                    String major = parts[2].trim();
                     int yearOfStudy = Integer.parseInt(parts[3].trim());
-                    String major = parts[4].trim();
-                    students.add(new Student(userId, name, password, yearOfStudy, major));
+        
+                    students.add(new Student(userId, name, "password", yearOfStudy, major));
 
                 }
             }
@@ -87,9 +85,9 @@ public class FileManager {
                 if (parts.length >= 4) {
                     String userId = parts[0].trim();
                     String name = parts[1].trim();
-                    String password = parts[2].trim();
+                   
                     String department = parts[3].trim();
-                    staff.add(new CareerCenterStaff(userId, name, password, department));
+                    staff.add(new CareerCenterStaff(userId, name, "password", department));
                 }
             }
         } 

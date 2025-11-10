@@ -74,7 +74,7 @@ public class CLI {
 
 
     public void start() {
-        System.out.println("=== Welcome to Internship Placement Management System ===");
+        System.out.println("\n\n=== Welcome to Internship Placement Management System ===");
         System.out.println();
 
 
@@ -109,7 +109,7 @@ public class CLI {
 
 
     private void showLoginMenu() {
-        System.out.println("\n=== Login ===");
+        System.out.println("=== Login ===");
         System.out.println("1. Login");
         System.out.println("2. Register as Company Representative");
         System.out.print("Choice: ");
