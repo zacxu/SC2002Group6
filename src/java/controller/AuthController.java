@@ -168,14 +168,14 @@ public class AuthController {
 
         ensureInitialized();
 
+        
 
-    
         if (users.containsKey(email)) {
             throw new IllegalArgumentException("User ID already exists");
         }
 
-        CompanyRepresentative companyRepresentative =
-            new CompanyRepresentative(email, name, password, companyName, department, position);
+        CompanyRepresentative companyRepresentative = new CompanyRepresentative(email, name, password, companyName, department, position);
+        
         users.put(companyRepresentative.getUserId(), companyRepresentative);
 
         saveUsers();
