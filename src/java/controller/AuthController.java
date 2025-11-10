@@ -168,10 +168,8 @@ public class AuthController {
 
         ensureInitialized();
 
-        if (!Validator.validateCompanyRepID(email)) {
-            throw new IllegalArgumentException("Invalid email format for Company Representative");
-        }
 
+    
         if (users.containsKey(email)) {
             throw new IllegalArgumentException("User ID already exists");
         }
