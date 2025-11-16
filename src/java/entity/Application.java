@@ -1,19 +1,21 @@
 package entity;
 
+import entity.enums.ApplicationStatus;
+
+import java.time.LocalDate;
+
 public class Application {
-    private String applicationId;
-    private String studentId;
-    private String internshipId;
+    private final String applicationId;
+    private final String studentId;
+    private final String internshipId;
     private ApplicationStatus status;
+    private final LocalDate applicationDate;
 
-    public enum ApplicationStatus {
-        Pending, Successful, Unsuccessful
-    }
-
-    public Application(String applicationId, String studentId, String internshipId) {
+    public Application(String applicationId, String studentId, String internshipId, LocalDate applicationDate) {
         this.applicationId = applicationId;
         this.studentId = studentId;
         this.internshipId = internshipId;
+        this.applicationDate = applicationDate;
         this.status = ApplicationStatus.Pending;
     }
 
@@ -21,24 +23,12 @@ public class Application {
         return applicationId;
     }
 
-    public void setApplicationId(String applicationId) {
-        this.applicationId = applicationId;
-    }
-
     public String getStudentId() {
         return studentId;
     }
 
-    public void setStudentId(String studentId) {
-        this.studentId = studentId;
-    }
-
     public String getInternshipId() {
         return internshipId;
-    }
-
-    public void setInternshipId(String internshipId) {
-        this.internshipId = internshipId;
     }
 
     public ApplicationStatus getStatus() {
@@ -48,5 +38,8 @@ public class Application {
     public void setStatus(ApplicationStatus status) {
         this.status = status;
     }
-}
 
+    public LocalDate getApplicationDate() {
+        return applicationDate;
+    }
+}
