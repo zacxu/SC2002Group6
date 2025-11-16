@@ -1,6 +1,9 @@
 package util;
 
-import entity.InternshipOpportunity;
+import entity.Internship;
+
+
+
 import java.time.LocalDate;
 import java.util.List;
 import java.util.ArrayList;
@@ -21,10 +24,10 @@ import java.util.stream.Collectors;
 
 
 
-public class Filter {
-    private InternshipOpportunity.InternshipStatus statusFilter;
+ public class Filter {
+    private InternshipStatus statusFilter;
     private String majorFilter;
-    private InternshipOpportunity.InternshipLevel levelFilter;
+    private InternshipLevel levelFilter;
     private LocalDate closingDateFilter;
     private String sortBy; 
 
@@ -50,8 +53,8 @@ public class Filter {
 
 
     
-    public List<InternshipOpportunity> apply(List<InternshipOpportunity> internships) {
-        List<InternshipOpportunity> filtered = new ArrayList<>(internships);
+    public List<Internship> apply(List<Internship> internships) {
+        List<Internship> filtered = new ArrayList<>(internships);
         
         if (statusFilter != null) {
             filtered = filtered.stream()
@@ -94,11 +97,11 @@ public class Filter {
 
 
     
-    public InternshipOpportunity.InternshipStatus getStatusFilter() {
+    public InternshipStatus getStatusFilter() {
         return statusFilter;
     }
     
-    public void setStatusFilter(InternshipOpportunity.InternshipStatus statusFilter) {
+    public void setStatusFilter(InternshipStatus statusFilter) {
         this.statusFilter = statusFilter;
     }
     
@@ -110,11 +113,11 @@ public class Filter {
         this.majorFilter = majorFilter;
     }
     
-    public InternshipOpportunity.InternshipLevel getLevelFilter() {
+    public InternshipLevel getLevelFilter() {
         return levelFilter;
     }
     
-    public void setLevelFilter(InternshipOpportunity.InternshipLevel levelFilter) {
+    public void setLevelFilter(InternshipLevel levelFilter) {
         this.levelFilter = levelFilter;
     }
     

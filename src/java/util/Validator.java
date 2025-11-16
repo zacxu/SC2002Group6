@@ -1,8 +1,8 @@
 package util;
 
 import entity.Student;
-import entity.InternshipOpportunity;
-
+import entity.Internship;
+import entity.enums.InternshipLevel;
 
 
 /**
@@ -12,40 +12,32 @@ import entity.InternshipOpportunity;
  */
 
 
-public class Validator {
+ public class Validator {
 
     private static final String DEFAULT_PASSWORD = "password";
-    
 
     public static boolean isDefaultPassword(String password) {
         return DEFAULT_PASSWORD.equals(password);
     }
 
-
-    
-    public static boolean isEligibleForInternship(Student student, InternshipOpportunity internship) {
-        
+    public static boolean isEligibleForInternship(Student student, Internship internship) {
         if (!student.getMajor().equalsIgnoreCase(internship.getPreferredMajor())) {
             return false;
         }
-        
-
         int year = student.getYearOfStudy();
-        InternshipOpportunity.InternshipLevel level = internship.getLevel();
-        
+        InternshipLevel level = internship.getLevel();
         if (year == 1 || year == 2) {
-            return level == InternshipOpportunity.InternshipLevel.Basic;
+            return level == InternshipLevel.Basic;
         } else if (year == 3 || year == 4) {
-            return true; 
+            return true;
         }
-        
         return false;
     }
-    
+
     public static boolean isValidYearOfStudy(int year) {
         return year >= 1 && year <= 4;
     }
-    
+
     public static boolean isValidMajor(String major) {
         if (major == null || major.trim().isEmpty()) {
             return false;
@@ -56,9 +48,9 @@ public class Validator {
                 return true;
             }
         }
-        return true; 
+        return true;
     }
-    
+
     public static boolean isValidSlotCount(int slots) {
         return slots > 0 && slots <= 10;
     }
