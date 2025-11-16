@@ -1,58 +1,50 @@
 package entity;
 
+import entity.enums.WithdrawalStatus;
+
+import java.time.LocalDate;
+
 public class WithdrawalRequest {
-    private String requestId;
-    private String applicationId;
-    private String studentId;
-    private String internshipId;
+    private final String requestId;
+    private final String applicationId;
+    private final String studentId;
+    private final String internshipId;
+    private final boolean afterPlacement;
+    private final LocalDate requestDate;
+    private final String reason;
     private WithdrawalStatus status;
-    private boolean isAfterPlacement;
 
-    public enum WithdrawalStatus {
-        Pending, Approved, Rejected
-    }
-
-    public WithdrawalRequest(String requestId, String applicationId,
-                             String studentId, String internshipId,
-                             boolean isAfterPlacement) {
+    public WithdrawalRequest(String requestId,
+                             String applicationId,
+                             String studentId,
+                             String internshipId,
+                             boolean afterPlacement,
+                             LocalDate requestDate,
+                             String reason) {
         this.requestId = requestId;
         this.applicationId = applicationId;
         this.studentId = studentId;
         this.internshipId = internshipId;
+        this.afterPlacement = afterPlacement;
+        this.requestDate = requestDate;
+        this.reason = reason;
         this.status = WithdrawalStatus.Pending;
-        this.isAfterPlacement = isAfterPlacement;
     }
 
     public String getRequestId() {
         return requestId;
     }
 
-    public void setRequestId(String requestId) {
-        this.requestId = requestId;
-    }
-
     public String getApplicationId() {
         return applicationId;
-    }
-
-    public void setApplicationId(String applicationId) {
-        this.applicationId = applicationId;
     }
 
     public String getStudentId() {
         return studentId;
     }
 
-    public void setStudentId(String studentId) {
-        this.studentId = studentId;
-    }
-
     public String getInternshipId() {
         return internshipId;
-    }
-
-    public void setInternshipId(String internshipId) {
-        this.internshipId = internshipId;
     }
 
     public WithdrawalStatus getStatus() {
@@ -64,11 +56,14 @@ public class WithdrawalRequest {
     }
 
     public boolean isAfterPlacement() {
-        return isAfterPlacement;
+        return afterPlacement;
     }
 
-    public void setAfterPlacement(boolean isAfterPlacement) {
-        this.isAfterPlacement = isAfterPlacement;
+    public LocalDate getRequestDate() {
+        return requestDate;
+    }
+
+    public String getReason() {
+        return reason;
     }
 }
-
