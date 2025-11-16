@@ -1,9 +1,14 @@
 package entity;
 
+import entity.enums.InternshipLevel;
+import entity.enums.InternshipStatus;
+
 import java.time.LocalDate;
 
-public class InternshipOpportunity {
-    private String internshipId;
+public class Internship {
+    private final String internshipId;
+    private final String companyRepId;
+    private final String companyName;
     private String title;
     private String description;
     private InternshipLevel level;
@@ -11,24 +16,20 @@ public class InternshipOpportunity {
     private LocalDate openingDate;
     private LocalDate closingDate;
     private InternshipStatus status;
-    private String companyName;
-    private String companyRepId;
     private int totalSlots;
     private int filledSlots;
     private boolean visible;
 
-    public enum InternshipLevel {
-        Basic, Intermediate, Advanced
-    }
-
-    public enum InternshipStatus {
-        Pending, Approved, Rejected, Filled
-    }
-
-    public InternshipOpportunity(String internshipId, String title, String description,
-                                 InternshipLevel level, String preferredMajor,
-                                 LocalDate openingDate, LocalDate closingDate,
-                                 String companyName, String companyRepId, int totalSlots) {
+    public Internship(String internshipId,
+                      String title,
+                      String description,
+                      InternshipLevel level,
+                      String preferredMajor,
+                      LocalDate openingDate,
+                      LocalDate closingDate,
+                      String companyName,
+                      String companyRepId,
+                      int totalSlots) {
         this.internshipId = internshipId;
         this.title = title;
         this.description = description;
@@ -36,20 +37,16 @@ public class InternshipOpportunity {
         this.preferredMajor = preferredMajor;
         this.openingDate = openingDate;
         this.closingDate = closingDate;
-        this.status = InternshipStatus.Pending;
         this.companyName = companyName;
         this.companyRepId = companyRepId;
         this.totalSlots = totalSlots;
         this.filledSlots = 0;
         this.visible = true;
+        this.status = InternshipStatus.Pending;
     }
 
     public String getInternshipId() {
         return internshipId;
-    }
-
-    public void setInternshipId(String internshipId) {
-        this.internshipId = internshipId;
     }
 
     public String getTitle() {
@@ -112,16 +109,8 @@ public class InternshipOpportunity {
         return companyName;
     }
 
-    public void setCompanyName(String companyName) {
-        this.companyName = companyName;
-    }
-
     public String getCompanyRepId() {
         return companyRepId;
-    }
-
-    public void setCompanyRepId(String companyRepId) {
-        this.companyRepId = companyRepId;
     }
 
     public int getTotalSlots() {
@@ -136,15 +125,8 @@ public class InternshipOpportunity {
         return filledSlots;
     }
 
-    public void setFilledSlots(int filledSlots) {
-        this.filledSlots = filledSlots;
-        if (this.filledSlots >= this.totalSlots) {
-            this.status = InternshipStatus.Filled;
-        }
-    }
-
     public int getAvailableSlots() {
-        return totalSlots - filledSlots;
+        return Math.max(0, totalSlots - filledSlots);
     }
 
     public boolean isVisible() {
@@ -159,12 +141,30 @@ public class InternshipOpportunity {
         this.visible = !this.visible;
     }
 
+    public void incrementFilledSlots() {
+        if (filledSlots < totalSlots) {
+            filledSlots++;
+        }
+        if (filledSlots >= totalSlots) {
+            status = InternshipStatus.Filled;
+        }
+    }
+
+    public void decrementFilledSlots() {
+        if (filledSlots > 0) {
+            filledSlots--;
+        }
+        if (status == InternshipStatus.Filled && filledSlots < totalSlots) {
+            status = InternshipStatus.Approved;
+        }
+    }
+
     public boolean isOpenForApplication() {
         LocalDate today = LocalDate.now();
         return status == InternshipStatus.Approved
             && visible
-            && today.isAfter(openingDate.minusDays(1))
-            && today.isBefore(closingDate.plusDays(1))
+            && !today.isBefore(openingDate)
+            && !today.isAfter(closingDate)
             && filledSlots < totalSlots;
     }
 
@@ -172,4 +172,3 @@ public class InternshipOpportunity {
         return LocalDate.now().isAfter(closingDate);
     }
 }
-
