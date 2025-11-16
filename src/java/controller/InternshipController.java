@@ -1,6 +1,9 @@
 package controller;
 
 import entity.*;
+import entity.enums.InternshipLevel;
+import entity.enums.InternshipStatus;
+
 
 import repository.*;
 import service.*;
@@ -8,7 +11,7 @@ import validator.InternshipValidator;
 
 import java.io.IOException;
 import java.time.LocalDate;
-import java.util.ArrayList;
+
 import java.util.Collection;
 
 

@@ -2,6 +2,8 @@ package boundary;
 
 import controller.*;
 import entity.*;
+import entity.enums.InternshipStatus;
+import entity.enums.InternshipLevel;
 
 import util.Filter;
 
@@ -23,7 +25,7 @@ import java.util.Scanner;
 
 
 
-public class StaffMenu {
+ public class StaffMenu {
 
     private final Scanner scanner;
     private final Filter filter;
@@ -35,7 +37,6 @@ public class StaffMenu {
     private final InternshipController internshipController;
 
 
-    
     public StaffMenu(Scanner scanner,
                      Filter filter,
                      AuthController authController,
@@ -44,7 +45,6 @@ public class StaffMenu {
                      InternshipReportController internshipReportController,
                      WithdrawalReportController withdrawalReportController,
                      InternshipController internshipController) {
-
 
 
         this.scanner = scanner;
@@ -57,7 +57,9 @@ public class StaffMenu {
         this.internshipController = internshipController;
 
     }
-    
+
+
+
 
 
 
@@ -75,60 +77,44 @@ public class StaffMenu {
 
             System.out.print("Choice: ");
             String choice = scanner.nextLine().trim();
-            
             switch (choice) {
                 case "1":
                     approveRejectCompanyRep();
                     break;
-
                 case "2":
                     approveRejectInternship();
                     break;
-
                 case "3":
                     handleWithdrawals();
                     break;
-
                 case "4":
                     generateReports();
                     break;
-
                 case "5":
                     changePassword();
                     break;
-
                 case "6":
                     authController.logout();
                     return;
-
                 default:
                     System.out.println("Invalid choice. Please try again.");
-
-
             }
         }
     }
-    
 
 
 
 
-    
+
 
 
     private void approveRejectCompanyRep() {
-
         System.out.println("\n=== Approve/Reject Company Representative ===");
-        
         List<CompanyRepresentative> pending = authController.getPendingCompanyReps();
-        
         if (pending.isEmpty()) {
             System.out.println("No pending company representative registrations.");
             return;
         }
-        
-
-
         System.out.println("Pending Registrations:");
         for (int i = 0; i < pending.size(); i++) {
             CompanyRepresentative cr = pending.get(i);
@@ -137,28 +123,19 @@ public class StaffMenu {
             System.out.println("   Department: " + cr.getDepartment());
             System.out.println("   Position: " + cr.getPosition());
         }
-
-
-        
         System.out.print("Company Rep User ID: ");
-        String userId = scanner.nextLine().trim();
-        
-        User user = authController.getUser(userId);
 
+        String userId = scanner.nextLine().trim();
+        User user = authController.getUser(userId);
         if (!(user instanceof CompanyRepresentative)) {
-            
             System.out.println("Company Representative not found.");
             return;
-
-
         }
-        
-
 
         System.out.print("Action (approve/reject): ");
+
         String action = scanner.nextLine().trim().toLowerCase();
 
-        
         if ("approve".equals(action)) {
             authController.approveCompanyRepresentative(userId);
             System.out.println("Company Representative approved!");
@@ -174,7 +151,7 @@ public class StaffMenu {
             return;
         }
     }
-    
+
 
 
 
@@ -182,56 +159,44 @@ public class StaffMenu {
 
 
     private void approveRejectInternship() {
-        
         System.out.println("\n=== Approve/Reject Internship Opportunity ===");
-        
-        List<InternshipOpportunity> pending = internshipApprovalControllerStaff.getPendingInternships();
-        
+        List<Internship> pending = internshipApprovalControllerStaff.getPendingInternships();
         if (pending.isEmpty()) {
             System.out.println("No pending internship opportunities.");
             return;
         }
-        
-
         System.out.println("Pending Internships:");
+
         for (int i = 0; i < pending.size(); i++) {
-            InternshipOpportunity internship = pending.get(i);
+            Internship internship = pending.get(i);
             System.out.println((i + 1) + ". " + internship.getTitle());
             System.out.println("   Company: " + internship.getCompanyName());
             System.out.println("   Level: " + internship.getLevel());
             System.out.println("   ID: " + internship.getInternshipId());
         }
-        
+
 
         System.out.print("Internship ID: ");
         String internshipId = scanner.nextLine().trim();
-        
         System.out.print("Action (approve/reject): ");
         String action = scanner.nextLine().trim().toLowerCase();
-        
+
+
 
         try {
             if ("approve".equals(action)) {
                 internshipApprovalControllerStaff.approveInternship(internshipId);
                 System.out.println("Internship approved!");
-            } 
-            
-            else if ("reject".equals(action)) {
+            } else if ("reject".equals(action)) {
                 internshipApprovalControllerStaff.rejectInternship(internshipId);
                 System.out.println("Internship rejected!");
-            } 
-            
-            else {
+            } else {
                 System.out.println("Invalid action.");
             }
-        } 
-        
-        catch (Exception e) {
+        } catch (Exception e) {
             System.out.println("Error: " + e.getMessage());
         }
     }
-    
-
 
 
 
@@ -239,43 +204,40 @@ public class StaffMenu {
 
     private void handleWithdrawals() {
         System.out.println("\n=== Handle Withdrawal Requests ===");
-        
+
         List<WithdrawalRequest> pending = withdrawalReportController.getPendingWithdrawalRequests();
-        
         if (pending.isEmpty()) {
             System.out.println("No pending withdrawal requests.");
             return;
         }
-        
 
         System.out.println("Pending Withdrawal Requests:");
 
         for (int i = 0; i < pending.size(); i++) {
             WithdrawalRequest request = pending.get(i);
-            InternshipOpportunity internship = internshipController.getInternship(request.getInternshipId());
+            Internship internship = internshipController.getInternship(request.getInternshipId());
             User student = authController.getUser(request.getStudentId());
-            
 
             System.out.println((i + 1) + ". Request ID: " + request.getRequestId());
 
             if (student != null) {
                 System.out.println("   Student: " + student.getName() + " (" + student.getUserId() + ")");
             }
-
             if (internship != null) {
                 System.out.println("   Internship: " + internship.getTitle());
             }
 
-
             System.out.println("   After Placement: " + request.isAfterPlacement());
+
         }
-        
+
+
+
         System.out.print("Request ID: ");
         String requestId = scanner.nextLine().trim();
-        
         System.out.print("Action (approve/reject): ");
+
         String action = scanner.nextLine().trim().toLowerCase();
-        
 
 
         try {
@@ -283,26 +245,17 @@ public class StaffMenu {
                 withdrawalApprovalControllerStaff.approveWithdrawal(requestId);
                 System.out.println("Withdrawal approved!");
             } 
-            
             else if ("reject".equals(action)) {
                 withdrawalApprovalControllerStaff.rejectWithdrawal(requestId);
                 System.out.println("Withdrawal rejected!");
             } 
-            
             else {
                 System.out.println("Invalid action.");
             }
-        } 
-        
-        catch (Exception e) {
+        } catch (Exception e) {
             System.out.println("Error: " + e.getMessage());
         }
     }
-    
-
-
-    
-
 
 
     private void generateReports() {
@@ -313,33 +266,28 @@ public class StaffMenu {
         System.out.println("4. Filter by Level");
         System.out.println("5. Custom Filter");
         System.out.print("Choice: ");
-        
+
         String choice = scanner.nextLine().trim();
-        
-        List<InternshipOpportunity> results;
 
+        List<Internship> results;
 
-        
         switch (choice) {
             case "1":
                 results = internshipReportController.generateReport(filter);
                 break;
 
-
             case "2":
+
                 System.out.print("Status (Pending/Approved/Rejected/Filled): ");
                 String statusStr = scanner.nextLine().trim();
                 try {
-                    InternshipOpportunity.InternshipStatus status = InternshipOpportunity.InternshipStatus.valueOf(statusStr);
+                    InternshipStatus status = InternshipStatus.valueOf(statusStr);
                     results = internshipReportController.generateReportByStatus(status);
-                } 
-                
-                catch (IllegalArgumentException e) {
+                } catch (IllegalArgumentException e) {
                     System.out.println("Invalid status.");
                     return;
                 }
                 break;
-
 
             case "3":
                 System.out.print("Major: ");
@@ -347,22 +295,16 @@ public class StaffMenu {
                 results = internshipReportController.generateReportByMajor(major);
                 break;
 
-
             case "4":
                 System.out.print("Level (Basic/Intermediate/Advanced): ");
                 String levelStr = scanner.nextLine().trim();
-
                 try {
-                    InternshipOpportunity.InternshipLevel level = 
-                        InternshipOpportunity.InternshipLevel.valueOf(levelStr);
+                    InternshipLevel level = InternshipLevel.valueOf(levelStr);
                     results = internshipReportController.generateReportByLevel(level);
-                } 
-                
-                catch (IllegalArgumentException e) {
+                } catch (IllegalArgumentException e) {
                     System.out.println("Invalid level.");
                     return;
                 }
-
                 break;
 
 
@@ -376,18 +318,13 @@ public class StaffMenu {
                 System.out.println("Invalid choice.");
                 return;
 
-
         }
-        
         System.out.println("\n=== Report Results ===");
         if (results.isEmpty()) {
             System.out.println("No internships found.");
             return;
         }
-        
-
-        for (InternshipOpportunity internship : results) {
-
+        for (Internship internship : results) {
             System.out.println("\nTitle: " + internship.getTitle());
             System.out.println("Company: " + internship.getCompanyName());
             System.out.println("Level: " + internship.getLevel());
@@ -395,15 +332,8 @@ public class StaffMenu {
             System.out.println("Preferred Major: " + internship.getPreferredMajor());
             System.out.println("Closing Date: " + internship.getClosingDate());
             System.out.println("Slots: " + internship.getFilledSlots() + "/" + internship.getTotalSlots());
-
-
         }
     }
-    
-
-
-
-
 
 
     private void configureFilter() {
@@ -413,22 +343,17 @@ public class StaffMenu {
         System.out.println("3. Filter by Level");
         System.out.println("4. Sort Options");
         System.out.print("Choice: ");
-        
         String choice = scanner.nextLine().trim();
-        
-
         switch (choice) {
             case "1":
                 System.out.print("Status (Pending/Approved/Rejected/Filled or 'clear'): ");
                 String statusStr = scanner.nextLine().trim();
-
                 if ("clear".equalsIgnoreCase(statusStr)) {
                     filter.setStatusFilter(null);
-                } 
-                
-                else {
+
+                } else {
                     try {
-                        filter.setStatusFilter(InternshipOpportunity.InternshipStatus.valueOf(statusStr));
+                        filter.setStatusFilter(InternshipStatus.valueOf(statusStr));
                     } 
                     
                     catch (IllegalArgumentException e) {
@@ -441,36 +366,26 @@ public class StaffMenu {
             case "2":
                 System.out.print("Major (or 'clear' to remove): ");
                 String major = scanner.nextLine().trim();
-
                 if ("clear".equalsIgnoreCase(major)) {
                     filter.setMajorFilter(null);
-                } 
-                
-                else {
+                } else {
                     filter.setMajorFilter(major);
                 }
-
                 break;
 
 
             case "3":
                 System.out.print("Level (Basic/Intermediate/Advanced or 'clear'): ");
                 String levelStr = scanner.nextLine().trim();
-
                 if ("clear".equalsIgnoreCase(levelStr)) {
                     filter.setLevelFilter(null);
-                } 
-                
-                else {
+                } else {
                     try {
-                        filter.setLevelFilter(InternshipOpportunity.InternshipLevel.valueOf(levelStr));
-                    } 
-                    
-                    catch (IllegalArgumentException e) {
+                        filter.setLevelFilter(InternshipLevel.valueOf(levelStr));
+                    } catch (IllegalArgumentException e) {
                         System.out.println("Invalid level.");
                     }
                 }
-
                 break;
 
 
@@ -479,27 +394,20 @@ public class StaffMenu {
                 String sortBy = scanner.nextLine().trim();
                 filter.setSortBy(sortBy);
                 break;
-
-
+                
         }
     }
-    
 
-
-    
     private void changePassword() {
         System.out.println("\n=== Change Password ===");
         System.out.print("Current Password: ");
         String oldPassword = scanner.nextLine().trim();
         System.out.print("New Password: ");
         String newPassword = scanner.nextLine().trim();
-        
-
         try {
             authController.changePassword(oldPassword, newPassword);
             System.out.println("Password changed successfully!");
-        } 
-        catch (Exception e) {
+        } catch (Exception e) {
             System.out.println("Error: " + e.getMessage());
         }
     }

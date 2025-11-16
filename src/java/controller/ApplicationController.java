@@ -2,7 +2,8 @@ package controller;
 
 
 import entity.*;
-import util.*;
+
+import entity.enums.ApplicationStatus;
 
 import repository.ApplicationRegistry;
 import repository.InternshipRegistry;

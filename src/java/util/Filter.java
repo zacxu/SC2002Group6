@@ -1,7 +1,8 @@
 package util;
 
 import entity.Internship;
-
+import entity.enums.InternshipLevel;
+import entity.enums.InternshipStatus;
 
 
 import java.time.LocalDate;
