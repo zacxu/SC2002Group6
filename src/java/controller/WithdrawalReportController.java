@@ -32,7 +32,7 @@ public class WithdrawalReportController {
 
 
     public List<WithdrawalRequest> getWithdrawalsByStudent(String studentId) {
-        return withdrawalController.getWithdrawalsByStudent(studentId);
+        return withdrawalController.getRequestsByStudent(studentId);
     }
     
 }

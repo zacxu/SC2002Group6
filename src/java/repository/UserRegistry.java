@@ -85,10 +85,7 @@ public class UserRegistry {
         users.remove(userId);
     }
 
-    public void removeUser(String userId) {
-        ensureInitialized();
-        users.remove(userId);
-    }
+
 
     public Collection<User> getAllUsers() {
         ensureInitialized();
