@@ -4,13 +4,22 @@ package controller;
 import entity.*;
 import util.*;
 
+import repository.ApplicationRegistry;
+import repository.InternshipRegistry;
+import service.SessionService;
+import service.StudentApplicationService;
+import validator.ApplicationValidator;
+
+
+
+
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
+import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
-import java.util.Map;
+
 
 /**
  * Manages internship applications and registry for internship applications.
@@ -25,75 +34,40 @@ import java.util.Map;
 
 
 
-public class ApplicationController {
+ public class ApplicationController implements StudentApplicationService {
+
     private static final ApplicationController INSTANCE = new ApplicationController();
 
-    private final Map<String, Application> applications = new HashMap<>();
-    private final SessionController sessionController = SessionController.getInstance();
-    private final AuthController authController = AuthController.getInstance();
-    private final InternshipController internshipController = InternshipController.getInstance();
 
+    private final SessionService sessionService = SessionController.getInstance();
+    private final AuthController authController = AuthController.getInstance();
+    private final InternshipRegistry internshipRegistry = InternshipRegistry.getInstance();
+    private final ApplicationRegistry applicationRegistry = ApplicationRegistry.getInstance();
+    private final ApplicationValidator applicationValidator = new ApplicationValidator();
 
     private boolean initialized = false;
-    private int nextApplicationId = 1;
-
-
 
     private ApplicationController() {
     }
-
-
 
     public static ApplicationController getInstance() {
         return INSTANCE;
     }
 
-
-
     public synchronized void initialize() throws IOException {
         if (initialized) {
             return;
         }
-        loadApplications();
+        applicationRegistry.initialize();
         initialized = true;
     }
-
-
-
-    private void loadApplications() throws IOException {
-        applications.clear();
-        applications.putAll(FileManager.loadApplications());
-        updateNextApplicationId();
-        syncStudentApplications();
-    }
-
-
 
     private void ensureInitialized() {
         if (!initialized) {
             try {
                 initialize();
             } catch (IOException e) {
-                throw new RuntimeException("Failed to initialise application registry", e);
-            }
-        }
-    }
-    
-
-
-
-    private void updateNextApplicationId() {
-        nextApplicationId = 1;
-        for (String key : applications.keySet()) {
-            if (key.startsWith("APP")) {
-                try {
-                    int value = Integer.parseInt(key.substring(3));
-                    if (value >= nextApplicationId) {
-                        nextApplicationId = value + 1;
-                    }
-                } catch (NumberFormatException ignored) {
-                    // ignore malformed id
-                }
+                throw new RuntimeException("Failed to initialise applications", e);
             }
         }
     }
@@ -101,82 +75,39 @@ public class ApplicationController {
 
 
 
-    private void syncStudentApplications() {
-        for (Application application : applications.values()) {
-            User user = authController.getUser(application.getStudentId());
-            if (user instanceof Student) {
-                Student student = (Student) user;
-                if (!student.getAppliedInternshipIds().contains(application.getInternshipId())) {
-                    student.addAppliedInternship(application.getInternshipId());
-                }
-            }
-        }
-    }
 
 
-    public synchronized void save() {
-        ensureInitialized();
-        try {
-            FileManager.saveApplications(applications);
-        } catch (IOException e) {
-            throw new RuntimeException("Error saving applications: " + e.getMessage(), e);
-        }
-    }
-
-
-
-
-
-
+    @Override
     public Application applyForInternship(String internshipId) {
         ensureInitialized();
-        internshipController.ensureInitialized();
+        internshipController().ensureInitialized();
 
-        User currentUser = sessionController.getCurrentUser();
-        if (!(currentUser instanceof Student)) {
-            throw new IllegalStateException("Only students can apply for internships");
-        }
-
-        Student student = (Student) currentUser;
-        InternshipOpportunity internship = internshipController.getInternship(internshipId);
-
-
-        if (internship == null) {
-            throw new IllegalArgumentException("Internship not found");
-        }
+        Student student = requireStudent();
+        Internship internship = requireInternship(internshipId);
 
         if (student.getAppliedInternshipIds().contains(internshipId)) {
             throw new IllegalStateException("You have already applied for this internship");
         }
 
-        if (!student.canApplyForMore()) {
-            throw new IllegalStateException("Maximum number of applications (3) reached");
+        if (!applicationValidator.validateApplicationEligibility(student, internship).isValid()) {
+            throw new IllegalStateException(
+                applicationValidator.validateApplicationEligibility(student, internship).getErrorMessage()
+            );
         }
 
-        if (!Validator.isEligibleForInternship(student, internship)) {
-            throw new IllegalStateException("You are not eligible for this internship based on your year of study and/or major");
-        }
+        Application application = new Application(
+            applicationRegistry.nextId(),
+            student.getUserId(),
+            internshipId,
+            LocalDate.now()
+        );
 
-        if (!internship.isOpenForApplication()) {
-            throw new IllegalStateException("This internship is not open for applications");
-        }
-
-
-
-
-        String applicationId = generateApplicationId();
-        Application application = new Application(applicationId, student.getUserId(), internshipId);
-
-        applications.put(applicationId, application);
+        applicationRegistry.addApplication(application);
         student.addAppliedInternship(internshipId);
-
-        save();
-
-
-
+        applicationRegistry.save();
         return application;
-
     }
+
 
 
 
@@ -185,63 +116,28 @@ public class ApplicationController {
 
     public void approveApplication(String applicationId, boolean isStaffAction) {
         ensureInitialized();
-
         Application application = requireApplication(applicationId);
+        Internship internship = requireInternship(application.getInternshipId());
 
-        InternshipOpportunity internship = internshipController.getInternship(application.getInternshipId());
-
-
-        if (internship == null) {
-            throw new IllegalArgumentException("Internship not found");
-        }
-
-
-        User currentUser = sessionController.getCurrentUser();
         if (!isStaffAction) {
-
-            if (!(currentUser instanceof CompanyRepresentative)) {
-                throw new IllegalStateException("Only company representatives can approve applications");
-            }
-            if (!internship.getCompanyRepId().equals(currentUser.getUserId())) {
-                throw new IllegalStateException("You can only approve applications for your own internships");
-            }
+            requireCompanyRepresentativeOwnership(internship);
         }
 
-
-        application.setStatus(Application.ApplicationStatus.Successful);
-        save();
-
+        application.setStatus(ApplicationStatus.Successful);
+        applicationRegistry.save();
     }
-
-
-
-
 
     public void rejectApplication(String applicationId, boolean isStaffAction) {
         ensureInitialized();
         Application application = requireApplication(applicationId);
-        InternshipOpportunity internship = internshipController.getInternship(application.getInternshipId());
-
-
-        if (internship == null) {
-            throw new IllegalArgumentException("Internship not found");
-        }
-
-
-        User currentUser = sessionController.getCurrentUser();
+        Internship internship = requireInternship(application.getInternshipId());
 
         if (!isStaffAction) {
-            if (!(currentUser instanceof CompanyRepresentative)) {
-                throw new IllegalStateException("Only company representatives can reject applications");
-            }
-            if (!internship.getCompanyRepId().equals(currentUser.getUserId())) {
-                throw new IllegalStateException("You can only reject applications for your own internships");
-            }
+            requireCompanyRepresentativeOwnership(internship);
         }
 
-        application.setStatus(Application.ApplicationStatus.Unsuccessful);
-        save();
-
+        application.setStatus(ApplicationStatus.Unsuccessful);
+        applicationRegistry.save();
     }
 
 
@@ -249,25 +145,20 @@ public class ApplicationController {
 
 
 
-    public void acceptPlacement(String applicationId) {
 
+    @Override
+    public void acceptPlacement(String applicationId) {
         ensureInitialized();
-        internshipController.ensureInitialized();
+        internshipController().ensureInitialized();
 
         Application application = requireApplication(applicationId);
-        User currentUser = sessionController.getCurrentUser();
+        Student student = requireStudent();
 
-
-        if (!(currentUser instanceof Student)) {
-            throw new IllegalStateException("Only students can accept placements");
-        }
-
-        Student student = (Student) currentUser;
         if (!application.getStudentId().equals(student.getUserId())) {
             throw new IllegalStateException("You can only accept your own placements");
         }
 
-        if (application.getStatus() != Application.ApplicationStatus.Successful) {
+        if (application.getStatus() != ApplicationStatus.Successful) {
             throw new IllegalStateException("Can only accept successful applications");
         }
 
@@ -275,79 +166,40 @@ public class ApplicationController {
             throw new IllegalStateException("You have already accepted a placement");
         }
 
-
         student.setAcceptedInternshipId(application.getInternshipId());
 
-        List<Application> otherApplications = getApplicationsByStudent(student.getUserId());
-
-
-        for (Application other : otherApplications) {
+        List<Application> otherApplications = applicationRegistry.getApplicationsByStudent(student.getUserId());
+        for (Application other : new ArrayList<>(otherApplications)) {
             if (!other.getApplicationId().equals(applicationId)) {
                 removeApplication(other.getApplicationId());
             }
-
-
         }
 
-        InternshipOpportunity internship = internshipController.getInternship(application.getInternshipId());
-
-        if (internship != null) {
-            internship.setFilledSlots(internship.getFilledSlots() + 1);
-            internshipController.save();
-        }
-
-        save();
+        Internship internship = requireInternship(application.getInternshipId());
+        internship.incrementFilledSlots();
+        internshipRegistry.save();
+        applicationRegistry.save();
     }
 
 
 
 
 
-    
 
     public List<Application> getApplicationsByStudent(String studentId) {
         ensureInitialized();
-        List<Application> result = new ArrayList<>();
-        for (Application application : applications.values()) {
-            if (application.getStudentId().equals(studentId)) {
-                result.add(application);
-            }
-        }
-        return result;
+        return applicationRegistry.getApplicationsByStudent(studentId);
     }
-
-
-
-
-    public List<Application> getApplicationsForCurrentStudent() {
-        User currentUser = sessionController.getCurrentUser();
-        if (!(currentUser instanceof Student)) {
-            return Collections.emptyList();
-        }
-        return getApplicationsByStudent(currentUser.getUserId());
-    }
-
-
-
 
     public List<Application> getApplicationsByInternship(String internshipId) {
         ensureInitialized();
-        List<Application> result = new ArrayList<>();
-        for (Application application : applications.values()) {
-            if (application.getInternshipId().equals(internshipId)) {
-                result.add(application);
-            }
-        }
-        return result;
+        return applicationRegistry.getApplicationsByInternship(internshipId);
     }
 
-
-
-
-    public List<Application> getApplicationsByStatus(Application.ApplicationStatus status) {
+    public List<Application> getApplicationsByStatus(ApplicationStatus status) {
         ensureInitialized();
         List<Application> result = new ArrayList<>();
-        for (Application application : applications.values()) {
+        for (Application application : applicationRegistry.getAllApplications()) {
             if (application.getStatus() == status) {
                 result.add(application);
             }
@@ -357,47 +209,79 @@ public class ApplicationController {
 
 
 
-    public Application getApplication(String applicationId) {
+
+    public Collection<Application> getAllApplications() {
         ensureInitialized();
-        return applications.get(applicationId);
+        return applicationRegistry.getAllApplications();
     }
 
-
-
-    public Map<String, Application> getApplications() {
+    public Application getApplication(String applicationId) {
         ensureInitialized();
-        return Collections.unmodifiableMap(applications);
+        return applicationRegistry.getApplicationById(applicationId);
     }
 
 
 
     public void removeApplication(String applicationId) {
         ensureInitialized();
-        Application removed = applications.remove(applicationId);
+        Application removed = applicationRegistry.getApplicationById(applicationId);
+
         if (removed != null) {
-            User user = authController.getUser(removed.getStudentId());
-            if (user instanceof Student) {
-                ((Student) user).removeAppliedInternship(removed.getInternshipId());
+            Student student = (Student) authController.getUser(removed.getStudentId());
+            if (student != null) {
+                student.removeAppliedInternship(removed.getInternshipId());
             }
+            applicationRegistry.removeApplication(applicationId);
+            applicationRegistry.save();
         }
-        save();
     }
 
 
 
-    public String generateApplicationId() {
-        ensureInitialized();
-        return "APP" + String.format("%05d", nextApplicationId++);
+
+    public void save() {
+        applicationRegistry.save();
     }
 
 
 
     private Application requireApplication(String applicationId) {
-        Application application = applications.get(applicationId);
+        Application application = applicationRegistry.getApplicationById(applicationId);
         if (application == null) {
             throw new IllegalArgumentException("Application not found");
         }
         return application;
+    }
+
+    private Internship requireInternship(String internshipId) {
+        Internship internship = internshipRegistry.getInternshipById(internshipId);
+        if (internship == null) {
+            throw new IllegalArgumentException("Internship not found");
+        }
+        return internship;
+    }
+
+    private Student requireStudent() {
+        if (!(sessionService.getCurrentUser() instanceof Student)) {
+            throw new IllegalStateException("Only students can perform this action");
+        }
+        return (Student) sessionService.getCurrentUser();
+    }
+
+    private InternshipController internshipController() {
+        return InternshipController.getInstance();
+    }
+
+    private void requireCompanyRepresentativeOwnership(Internship internship) {
+
+        if (!(sessionService.getCurrentUser() instanceof CompanyRepresentative)) {
+            throw new IllegalStateException("Only company representatives can perform this action");
+        }
+        if (!internship.getCompanyRepId().equals(sessionService.getCurrentUser().getUserId())) {
+            throw new IllegalStateException("You can only manage applications for your own internships");
+        }
+
+
     }
 }
 

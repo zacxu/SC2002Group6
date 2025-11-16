@@ -1,16 +1,20 @@
 package controller;
 
 import entity.*;
-import util.*;
+
+import repository.*;
+import service.*;
+import validator.InternshipValidator;
 
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
+
+
 import java.util.List;
-import java.util.Map;
+
+
 
 /**
  * Manages internship opportunities and persistence.
@@ -23,115 +27,32 @@ import java.util.Map;
 
 
 
-public class InternshipController {
-
+ public class InternshipController implements CompanyInternshipManagementService, StaffInternshipApprovalService {
     private static final InternshipController INSTANCE = new InternshipController();
 
-    private final Map<String, InternshipOpportunity> internships = new HashMap<>();
-
-    private final SessionController sessionController = SessionController.getInstance();
-    private final AuthController authController = AuthController.getInstance();
-
-    private boolean initialized = false;
-    private int nextInternshipId = 1;
+    private final SessionService sessionService = SessionController.getInstance();
+    private final InternshipRegistry internshipRegistry = InternshipRegistry.getInstance();
+    private final ApplicationRegistry applicationRegistry = ApplicationRegistry.getInstance();
+    private final InternshipValidator internshipValidator = new InternshipValidator();
 
 
 
     private InternshipController() {
     }
 
-
     public static InternshipController getInstance() {
         return INSTANCE;
     }
 
-
-
-    public synchronized void initialize() throws IOException {
-        if (initialized) {
-            return;
-        }
-        loadInternships();
-        initialized = true;
+    public void initialize() throws IOException {
+        internshipRegistry.initialize();
     }
-
-
-
-    private void loadInternships() throws IOException {
-        internships.clear();
-        internships.putAll(FileManager.loadInternships());
-        updateNextInternshipId();
-        rebuildCompanyRepresentativeInternships();
-    }
-
-
-
-    private void ensureLoaded() {
-        if (!initialized) {
-            try {
-                initialize();
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to initialise internship registry", e);
-            }
-        }
-    }
-
-
 
     public void ensureInitialized() {
-        ensureLoaded();
-    }
-
-
-
-
-    private void updateNextInternshipId() {
-        nextInternshipId = 1;
-        for (String key : internships.keySet()) {
-            if (key.startsWith("INT")) {
-                try {
-                    int value = Integer.parseInt(key.substring(3));
-                    if (value >= nextInternshipId) {
-                        nextInternshipId = value + 1;
-                    }
-                } catch (NumberFormatException ignored) {
-                   
-                }
-            }
-        }
-    }
-
-
-
-    private void rebuildCompanyRepresentativeInternships() {
-        for (User user : authController.getAllUsers()) {
-            if (user instanceof CompanyRepresentative) {
-                CompanyRepresentative representative = (CompanyRepresentative) user;
-                representative.getCreatedInternshipIds().clear();
-            }
-        }
-
-
-        for (InternshipOpportunity internship : internships.values()) {
-            User owner = authController.getUser(internship.getCompanyRepId());
-
-            if (owner instanceof CompanyRepresentative) {
-                CompanyRepresentative representative = (CompanyRepresentative) owner;
-                representative.addCreatedInternship(internship.getInternshipId());
-
-            }
-
-        }
-    }
-
-
-
-    public synchronized void save() {
-        ensureLoaded();
         try {
-            FileManager.saveInternships(internships);
+            internshipRegistry.initialize();
         } catch (IOException e) {
-            throw new RuntimeException("Error saving internships: " + e.getMessage(), e);
+            throw new RuntimeException("Failed to initialise internships", e);
         }
     }
 
@@ -140,93 +61,86 @@ public class InternshipController {
 
 
 
-    public InternshipOpportunity createInternship(String title,
-                                                  String description,
-                                                  InternshipOpportunity.InternshipLevel level,
-                                                  String preferredMajor,
-                                                  LocalDate openingDate,
-                                                  LocalDate closingDate,
-                                                  int totalSlots) {
+    @Override
+    public Internship createInternship(String title,
+                                       String description,
+                                       InternshipLevel level,
+                                       String preferredMajor,
+                                       LocalDate openingDate,
+                                       LocalDate closingDate,
+                                       int totalSlots) {
+        ensureInitialized();
+        CompanyRepresentative representative = requireCompanyRep();
 
-
-        ensureLoaded();
-
-
-        User currentUser = sessionController.getCurrentUser();
-
-        if (!(currentUser instanceof CompanyRepresentative)) {
-
-            throw new IllegalStateException("Only Company Representatives can create internships");
+        if (!internshipValidator.canRepCreateMoreInternships(representative)) {
+            throw new IllegalStateException("Maximum number of internships (" + representative.getCreatedInternshipIds().size() + ") reached");
         }
 
-
-        
-        CompanyRepresentative representative = (CompanyRepresentative) currentUser;
-
-        if (!representative.canCreateMoreInternships()) {
-
-            throw new IllegalStateException("Maximum number of internships (5) reached");
-        }
-
-
-        if (!Validator.isValidSlotCount(totalSlots)) {
+        if (!internshipValidator.isWithinSlotLimit(totalSlots)) {
             throw new IllegalArgumentException("Slots must be between 1 and 10");
         }
 
-
-        if (!DateUtils.isValidDateRange(openingDate, closingDate)) {
+        if (!internshipValidator.isDateRangeValid(openingDate, closingDate)) {
             throw new IllegalArgumentException("Invalid date range: closing date must be after opening date");
         }
 
+        String internshipId = internshipRegistry.nextId();
+        Internship internship = new Internship(
+            internshipId,
+            title,
+            description,
+            level,
+            preferredMajor,
+            openingDate,
+            closingDate,
+            representative.getCompanyName(),
+            representative.getUserId(),
+            totalSlots
 
-        String internshipId = generateInternshipId();
-        InternshipOpportunity opportunity = new InternshipOpportunity( internshipId, title, description, level, preferredMajor, openingDate, closingDate, representative.getCompanyName(), representative.getUserId(), totalSlots);
+        );
 
 
-        internships.put(internshipId, opportunity);
+
+        internshipRegistry.addInternship(internship);
         representative.addCreatedInternship(internshipId);
-        save();
-
-        return opportunity;
-
-
-
+        internshipRegistry.save();
+        return internship;
     }
 
 
 
 
 
+
+
+    @Override
     public void updateInternship(String internshipId,
                                  String title,
                                  String description,
-                                 InternshipOpportunity.InternshipLevel level,
+                                 InternshipLevel level,
                                  String preferredMajor,
                                  LocalDate openingDate,
                                  LocalDate closingDate,
                                  int totalSlots) {
+        ensureInitialized();
+        Internship internship = requireInternship(internshipId);
+        CompanyRepresentative representative = requireCompanyRep();
 
-        ensureLoaded();
-
-        InternshipOpportunity internship = requireInternship(internshipId);
-        User currentUser = sessionController.getCurrentUser();
-        if (currentUser == null || !internship.getCompanyRepId().equals(currentUser.getUserId())) {
+        if (!internship.getCompanyRepId().equals(representative.getUserId())) {
             throw new IllegalStateException("You can only edit your own internships");
         }
 
-        if (internship.getStatus() == InternshipOpportunity.InternshipStatus.Approved
-            || internship.getStatus() == InternshipOpportunity.InternshipStatus.Filled) {
+        if (internship.getStatus() == InternshipStatus.Approved
+            || internship.getStatus() == InternshipStatus.Filled) {
             throw new IllegalStateException("Cannot edit internship that is already approved or filled");
         }
 
-        if (!DateUtils.isValidDateRange(openingDate, closingDate)) {
+        if (!internshipValidator.isDateRangeValid(openingDate, closingDate)) {
             throw new IllegalArgumentException("Invalid date range: closing date must be after opening date");
         }
 
         if (totalSlots < internship.getFilledSlots()) {
-            throw new IllegalArgumentException(
-                "Total slots cannot be less than filled slots (" + internship.getFilledSlots() + ")"
-            );
+            throw new IllegalArgumentException("Total slots cannot be less than filled slots");
         }
 
         internship.setTitle(title);
@@ -237,176 +151,146 @@ public class InternshipController {
         internship.setClosingDate(closingDate);
         internship.setTotalSlots(totalSlots);
 
-        save();
-
+        internshipRegistry.save();
     }
 
 
 
 
 
-    public void deleteInternship(String internshipId, List<Application> existingApplications) {
 
-        ensureLoaded();
 
-        InternshipOpportunity internship = requireInternship(internshipId);
-        User currentUser = sessionController.getCurrentUser();
-        if (currentUser == null || !internship.getCompanyRepId().equals(currentUser.getUserId())) {
+
+    @Override
+    public void deleteInternship(String internshipId) {
+        ensureInitialized();
+        Internship internship = requireInternship(internshipId);
+        CompanyRepresentative representative = requireCompanyRep();
+
+        if (!internship.getCompanyRepId().equals(representative.getUserId())) {
             throw new IllegalStateException("You can only delete your own internships");
         }
 
-        if (internship.getStatus() == InternshipOpportunity.InternshipStatus.Approved
-            && existingApplications != null
-            && !existingApplications.isEmpty()) {
+        List<Application> existingApps = applicationRegistry.getApplicationsByInternship(internshipId);
+        if (!existingApps.isEmpty()
+            && internship.getStatus() == InternshipStatus.Approved) {
             throw new IllegalStateException("Cannot delete internship with existing applications");
         }
 
-        internships.remove(internshipId);
-
-        if (currentUser instanceof CompanyRepresentative) {
-            ((CompanyRepresentative) currentUser).removeCreatedInternship(internshipId);
-        }
-
-        save();
+        internshipRegistry.removeInternship(internshipId);
+        representative.removeCreatedInternship(internshipId);
+        internshipRegistry.save();
     }
 
 
 
 
 
-    public void toggleVisibility(String internshipId) {
-        ensureLoaded();
-        InternshipOpportunity internship = requireInternship(internshipId);
-        User currentUser = sessionController.getCurrentUser();
 
-        if (currentUser instanceof CompanyRepresentative && !internship.getCompanyRepId().equals(currentUser.getUserId())) {
-            
+
+    @Override
+    public void toggleVisibility(String internshipId) {
+        ensureInitialized();
+        Internship internship = requireInternship(internshipId);
+
+        CompanyRepresentative representative = requireCompanyRep();
+        if (!internship.getCompanyRepId().equals(representative.getUserId())) {
             throw new IllegalStateException("You can only toggle visibility for your own internships");
         }
 
         internship.toggleVisibility();
-        save();
+        internshipRegistry.save();
     }
 
 
 
 
 
-    public void approveInternship(String internshipId) {
-        ensureLoaded();
-        InternshipOpportunity internship = requireInternship(internshipId);
 
-        if (internship.getStatus() != InternshipOpportunity.InternshipStatus.Pending) {
+
+
+
+    @Override
+    public List<Internship> getInternshipsByCompanyRep(String companyRepId) {
+        ensureInitialized();
+        return internshipRegistry.getInternshipsByCompanyRep(companyRepId);
+    }
+
+    @Override
+    public List<Internship> getPendingInternships() {
+        ensureInitialized();
+        ensureStaff();
+        return internshipRegistry.getPendingInternships();
+    }
+
+
+    @Override
+    public void approveInternship(String internshipId) {
+        ensureInitialized();
+        ensureStaff();
+        Internship internship = requireInternship(internshipId);
+        if (internship.getStatus() != InternshipStatus.Pending) {
             throw new IllegalStateException("Only pending internships can be approved");
         }
-
-
-        internship.setStatus(InternshipOpportunity.InternshipStatus.Approved);
-        save();
+        internship.setStatus(InternshipStatus.Approved);
+        internshipRegistry.save();
     }
 
 
-
-
+    @Override
     public void rejectInternship(String internshipId) {
-        ensureLoaded();
-        InternshipOpportunity internship = requireInternship(internshipId);
-
-        if (internship.getStatus() != InternshipOpportunity.InternshipStatus.Pending) {
+        ensureInitialized();
+        ensureStaff();
+        Internship internship = requireInternship(internshipId);
+        if (internship.getStatus() != InternshipStatus.Pending) {
             throw new IllegalStateException("Only pending internships can be rejected");
         }
-        internship.setStatus(InternshipOpportunity.InternshipStatus.Rejected);
-        save();
+        internship.setStatus(InternshipStatus.Rejected);
+        internshipRegistry.save();
     }
 
 
+    public Internship getInternship(String internshipId) {
+        ensureInitialized();
+        return internshipRegistry.getInternshipById(internshipId);
+    }
 
+    public Collection<Internship> getAllInternships() {
+        ensureInitialized();
+        return internshipRegistry.getAllInternships();
+    }
 
+    public List<Internship> getVisibleInternships() {
+        ensureInitialized();
+        return internshipRegistry.getVisibleInternships();
+    }
 
-    public InternshipOpportunity getInternship(String internshipId) {
-        ensureLoaded();
-        return internships.get(internshipId);
+    public void save() {
+        internshipRegistry.save();
     }
 
 
 
     
-    public Collection<InternshipOpportunity> getAllInternships() {
-        ensureLoaded();
-        return Collections.unmodifiableCollection(internships.values());
-    }
-
-
-
-
-    public List<InternshipOpportunity> getInternshipsByCompanyRep(String companyRepId) {
-        ensureLoaded();
-        List<InternshipOpportunity> list = new ArrayList<>();
-
-        for (InternshipOpportunity opportunity : internships.values()) {
-            if (opportunity.getCompanyRepId().equals(companyRepId)) {
-                list.add(opportunity);
-            }
-        }
-        return list;
-    }
-
-
-
-
-    public List<InternshipOpportunity> getPendingInternships() {
-        ensureLoaded();
-        List<InternshipOpportunity> pending = new ArrayList<>();
-
-        for (InternshipOpportunity opportunity : internships.values()) {
-
-            if (opportunity.getStatus() == InternshipOpportunity.InternshipStatus.Pending) {
-                pending.add(opportunity);
-            }
-        }
-        return pending;
-    }
-
-
-
-
-    public List<InternshipOpportunity> getVisibleInternships() {
-        ensureLoaded();
-        List<InternshipOpportunity> visible = new ArrayList<>();
-        for (InternshipOpportunity opportunity : internships.values()) {
-            if (opportunity.isVisible()
-                && opportunity.getStatus() == InternshipOpportunity.InternshipStatus.Approved) {
-                visible.add(opportunity);
-            }
-        }
-        return visible;
-    }
-
-
-
-
-    public Map<String, InternshipOpportunity> getInternships() {
-        ensureLoaded();
-        return Collections.unmodifiableMap(internships);
-    }
-
-
-
-
-    public String generateInternshipId() {
-        ensureLoaded();
-        return "INT" + String.format("%05d", nextInternshipId++);
-    }
-
-
-
-    private InternshipOpportunity requireInternship(String internshipId) {
-        InternshipOpportunity internship = internships.get(internshipId);
+    private Internship requireInternship(String internshipId) {
+        Internship internship = internshipRegistry.getInternshipById(internshipId);
         if (internship == null) {
             throw new IllegalArgumentException("Internship not found");
         }
         return internship;
-        
+    }
+
+    private CompanyRepresentative requireCompanyRep() {
+        if (!(sessionService.getCurrentUser() instanceof CompanyRepresentative)) {
+            throw new IllegalStateException("Only Company Representatives can perform this action");
+        }
+        return (CompanyRepresentative) sessionService.getCurrentUser();
+    }
+
+    private void ensureStaff() {
+        if (!(sessionService.getCurrentUser() instanceof CareerCenterStaff)) {
+            throw new IllegalStateException("Only Career Center Staff can perform this action");
+        }
     }
 }
 

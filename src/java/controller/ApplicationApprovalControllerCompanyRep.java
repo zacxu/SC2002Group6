@@ -1,6 +1,9 @@
 package controller;
 
-import entity.*;
+import entity.Application;
+import entity.CompanyRepresentative;
+import entity.Internship;
+import entity.User;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,13 +20,13 @@ import java.util.List;
 
 
 
+ public class ApplicationApprovalControllerCompanyRep {
 
-public class ApplicationApprovalControllerCompanyRep {
+
 
     private final SessionController sessionController = SessionController.getInstance();
     private final ApplicationController applicationController = ApplicationController.getInstance();
     private final InternshipController internshipController = InternshipController.getInstance();
-
 
 
 
@@ -38,7 +41,6 @@ public class ApplicationApprovalControllerCompanyRep {
     }
 
 
-    
 
     public void approveApplication(String applicationId) {
         ensureCompanyRepresentative();
@@ -46,28 +48,31 @@ public class ApplicationApprovalControllerCompanyRep {
         applicationController.approveApplication(applicationId, false);
     }
 
+
+
     public void rejectApplication(String applicationId) {
         ensureCompanyRepresentative();
-
         applicationController.rejectApplication(applicationId, false);
     }
 
 
 
 
-
     public List<Application> getPendingApplications() {
         ensureCompanyRepresentative();
+
+
         User currentUser = sessionController.getCurrentUser();
         String companyRepId = currentUser.getUserId();
+
 
         List<Application> pending = new ArrayList<>();
 
 
-        for (Application application : applicationController.getApplications().values()) {
+        for (Application application : applicationController.getAllApplications()) {
 
-            if (application.getStatus() == Application.ApplicationStatus.Pending) {
-                InternshipOpportunity internship = internshipController.getInternship(application.getInternshipId());
+            if (application.getStatus() == entity.enums.ApplicationStatus.Pending) {
+                Internship internship = internshipController.getInternship(application.getInternshipId());
 
                 if (internship != null && internship.getCompanyRepId().equals(companyRepId)) {
                     pending.add(application);
@@ -75,15 +80,18 @@ public class ApplicationApprovalControllerCompanyRep {
             }
         }
         return pending;
+
     }
 
-
-
-    
-
-
-    
 }
+
+
+
+    
+
+
+    
+
 
 
 

@@ -1,6 +1,7 @@
 package controller;
 
 import entity.Application;
+import entity.enums.ApplicationStatus;
 
 import java.util.List;
 
@@ -26,7 +27,7 @@ public class ApplicationReportController {
     }
 
     
-    public List<Application> getApplicationByStatus(Application.ApplicationStatus status) {
+    public List<Application> getApplicationByStatus(ApplicationStatus status) {
         return applicationController.getApplicationsByStatus(status);
     }
 

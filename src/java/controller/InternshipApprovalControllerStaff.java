@@ -38,7 +38,7 @@ public class InternshipApprovalControllerStaff {
     }
 
 
-    public List<InternshipOpportunity> getPendingInternships() {
+    public List<Internship> getPendingInternships() {
         ensureStaff();
         return internshipController.getPendingInternships();
     }

@@ -1,16 +1,17 @@
 package controller;
 
 import entity.*;
+import repository.*;
+import service.SessionService;
+import service.StudentWithdrawalService;
+import validator.WithdrawalValidator;
+
 
 import util.FileManager;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 
 /**
@@ -25,21 +26,19 @@ import java.util.Map;
 
 
 
-
-public class WithdrawalController {
+ public class WithdrawalController implements StudentWithdrawalService {
 
     private static final WithdrawalController INSTANCE = new WithdrawalController();
 
-    private final Map<String, WithdrawalRequest> withdrawalRequests = new HashMap<>();
-    private final SessionController sessionController = SessionController.getInstance();
+    private final SessionService sessionService = SessionController.getInstance();
     private final AuthController authController = AuthController.getInstance();
-    private final ApplicationController applicationController = ApplicationController.getInstance();
-    private final InternshipController internshipController = InternshipController.getInstance();
+    private final ApplicationRegistry applicationRegistry = ApplicationRegistry.getInstance();
+    private final InternshipRegistry internshipRegistry = InternshipRegistry.getInstance();
+    private final WithdrawalRegistry withdrawalRegistry = WithdrawalRegistry.getInstance();
+    private final WithdrawalValidator withdrawalValidator = new WithdrawalValidator();
 
 
     private boolean initialized = false;
-    private int nextWithdrawalRequestId = 1;
-
 
 
     private WithdrawalController() {
@@ -53,25 +52,16 @@ public class WithdrawalController {
         if (initialized) {
             return;
         }
-        loadWithdrawalRequests();
+        withdrawalRegistry.initialize();
         initialized = true;
     }
-
-
-    private void loadWithdrawalRequests() throws IOException {
-        withdrawalRequests.clear();
-        withdrawalRequests.putAll(FileManager.loadWithdrawalRequests());
-        updateNextWithdrawalId();
-    }
-
-
 
     private void ensureInitialized() {
         if (!initialized) {
             try {
                 initialize();
             } catch (IOException e) {
-                throw new RuntimeException("Failed to initialise withdrawal registry", e);
+                throw new RuntimeException("Failed to initialise withdrawal requests", e);
             }
         }
     }
@@ -79,210 +69,142 @@ public class WithdrawalController {
 
 
 
-    private void updateNextWithdrawalId() {
-        nextWithdrawalRequestId = 1;
-        for (String key : withdrawalRequests.keySet()) {
-            if (key.startsWith("WR")) {
-                try {
-                    int value = Integer.parseInt(key.substring(2));
-                    if (value >= nextWithdrawalRequestId) {
-                        nextWithdrawalRequestId = value + 1;
-                    }
-                } catch (NumberFormatException ignored) {
-                    // ignore malformed id
-                }
-            }
-        }
-    }
 
-
-
-    public synchronized void save() {
+    @Override
+    public WithdrawalRequest requestWithdrawal(String applicationId, String reason) {
         ensureInitialized();
-        try {
-            FileManager.saveWithdrawalRequests(withdrawalRequests);
-        } catch (IOException e) {
-            throw new RuntimeException("Error saving withdrawal requests: " + e.getMessage(), e);
-        }
-    }
+        Application application = applicationRegistry.getApplicationById(applicationId);
 
-
-
-
-
-
-    public WithdrawalRequest requestWithdrawal(String applicationId) {
-        ensureInitialized();
-
-        Application application = applicationController.getApplication(applicationId);
-
-        if (application == null) {
-            throw new IllegalArgumentException("Application not found");
+        if (!withdrawalValidator.canWithdrawApplication(application)) {
+            throw new IllegalStateException("You cannot withdraw this application");
         }
 
-
-        User currentUser = sessionController.getCurrentUser();
-
-        if (!(currentUser instanceof Student)) {
-            throw new IllegalStateException("Only students can request withdrawal");
-        }
-
-
-        Student student = (Student) currentUser;
+        Student student = requireStudent();
         if (!application.getStudentId().equals(student.getUserId())) {
             throw new IllegalStateException("You can only withdraw your own applications");
         }
 
-        for (WithdrawalRequest request : withdrawalRequests.values()) {
+        boolean existsPending = withdrawalRegistry.getAllRequests().stream()
+            .anyMatch(req -> req.getApplicationId().equals(applicationId)
+                && req.getStatus() == WithdrawalStatus.Pending);
 
-            if (request.getApplicationId().equals(applicationId) && request.getStatus() == WithdrawalRequest.WithdrawalStatus.Pending) {
-                throw new IllegalStateException("You already have a pending withdrawal request for this application");
-            }
+        if (existsPending) {
+            throw new IllegalStateException("You already have a pending withdrawal request for this application");
         }
 
+        boolean afterPlacement =
+            student.hasAcceptedPlacement() && application.getInternshipId().equals(student.getAcceptedInternshipId());
 
+        WithdrawalRequest request = withdrawalRegistry.newRequest(
+            applicationId,
+            student.getUserId(),
+            application.getInternshipId(),
+            afterPlacement,
+            reason
+        );
 
-        boolean isAfterPlacement = student.hasAcceptedPlacement() && student.getAcceptedInternshipId().equals(application.getInternshipId());
-
-
-
-        String requestId = generateWithdrawalRequestId();
-        WithdrawalRequest request = new WithdrawalRequest(requestId, applicationId, student.getUserId(), application.getInternshipId(), isAfterPlacement);
-
-        withdrawalRequests.put(requestId, request);
-        save();
+        withdrawalRegistry.addRequest(request);
+        withdrawalRegistry.save();
         return request;
-
-
     }
-
 
 
 
 
     public void approveWithdrawal(String requestId) {
         ensureInitialized();
-
+        ensureStaff();
         WithdrawalRequest request = requireRequest(requestId);
-        request.setStatus(WithdrawalRequest.WithdrawalStatus.Approved);
+        request.setStatus(WithdrawalStatus.Approved);
 
-        Application application = applicationController.getApplication(request.getApplicationId());
+        Application application = applicationRegistry.getApplicationById(request.getApplicationId());
         if (application != null) {
-            User user = authController.getUser(request.getStudentId());
-
-
-            if (user instanceof Student) {
-                Student student = (Student) user;
+            Student student = (Student) authController.getUser(request.getStudentId());
+            if (student != null) {
                 student.removeAppliedInternship(request.getInternshipId());
-
-                if (student.hasAcceptedPlacement() && request.getInternshipId().equals(student.getAcceptedInternshipId())) {
+                if (student.hasAcceptedPlacement()
+                    && request.getInternshipId().equals(student.getAcceptedInternshipId())) {
                     student.setAcceptedInternshipId(null);
-
                 }
             }
 
-            if (application.getStatus() == Application.ApplicationStatus.Successful) {
-
-                InternshipOpportunity internship = internshipController.getInternship(request.getInternshipId());
-
-                if (internship != null && internship.getFilledSlots() > 0) {
-                    internship.setFilledSlots(internship.getFilledSlots() - 1);
-
-                    if (internship.getStatus() == InternshipOpportunity.InternshipStatus.Filled
-                        && internship.getAvailableSlots() > 0) {
-                        internship.setStatus(InternshipOpportunity.InternshipStatus.Approved);
-                    }
-                    internshipController.save();
+            if (application.getStatus() == ApplicationStatus.Successful) {
+                Internship internship = internshipRegistry.getInternshipById(request.getInternshipId());
+                if (internship != null) {
+                    internship.decrementFilledSlots();
+                    internshipRegistry.save();
                 }
             }
 
-            applicationController.removeApplication(request.getApplicationId());
+            applicationRegistry.removeApplication(request.getApplicationId());
         }
 
-        save();
+        withdrawalRegistry.save();
     }
 
 
 
-    
+
 
     public void rejectWithdrawal(String requestId) {
         ensureInitialized();
+        ensureStaff();
         WithdrawalRequest request = requireRequest(requestId);
-        request.setStatus(WithdrawalRequest.WithdrawalStatus.Rejected);
-
-        save();
+        request.setStatus(WithdrawalStatus.Rejected);
+        withdrawalRegistry.save();
     }
 
 
+
+    @Override
+    public List<WithdrawalRequest> getRequestsByStudent(String studentId) {
+        ensureInitialized();
+        return withdrawalRegistry.getRequestsByStudent(studentId);
+    }
 
     public List<WithdrawalRequest> getPendingWithdrawalRequests() {
         ensureInitialized();
-        List<WithdrawalRequest> pending = new ArrayList<>();
-
-        for (WithdrawalRequest request : withdrawalRequests.values()) {
-            if (request.getStatus() == WithdrawalRequest.WithdrawalStatus.Pending) {
-                pending.add(request);
-            }
-        }
-        return pending;
+        ensureStaff();
+        return withdrawalRegistry.getPendingRequests();
     }
-
-    public List<WithdrawalRequest> getWithdrawalsByStudent(String studentId) {
-        ensureInitialized();
-
-        List<WithdrawalRequest> result = new ArrayList<>();
-
-        for (WithdrawalRequest request : withdrawalRequests.values()) {
-            if (request.getStudentId().equals(studentId)) {
-                result.add(request);
-            }
-        }
-        return result;
-    }
-
-
-
-    public List<WithdrawalRequest> getMyWithdrawalRequests() {
-        User currentUser = sessionController.getCurrentUser();
-
-        if (!(currentUser instanceof Student)) {
-            return Collections.emptyList();
-        }
-        return getWithdrawalsByStudent(currentUser.getUserId());
-    }
-
 
     public Collection<WithdrawalRequest> getAllWithdrawalRequests() {
         ensureInitialized();
-        return Collections.unmodifiableCollection(withdrawalRequests.values());
+        ensureStaff();
+        return withdrawalRegistry.getAllRequests();
     }
 
-
-    public Map<String, WithdrawalRequest> getWithdrawalRequests() {
-        ensureInitialized();
-        return Collections.unmodifiableMap(withdrawalRequests);
-    }
 
     public WithdrawalRequest getWithdrawalRequest(String requestId) {
         ensureInitialized();
-        return withdrawalRequests.get(requestId);
+        return withdrawalRegistry.getRequestById(requestId);
     }
 
-
-    public String generateWithdrawalRequestId() {
-        ensureInitialized();
-        return "WR" + String.format("%05d", nextWithdrawalRequestId++);
+    public void save() {
+        withdrawalRegistry.save();
     }
-
-
 
     private WithdrawalRequest requireRequest(String requestId) {
-        WithdrawalRequest request = withdrawalRequests.get(requestId);
+        WithdrawalRequest request = withdrawalRegistry.getRequestById(requestId);
         if (request == null) {
             throw new IllegalArgumentException("Withdrawal request not found");
         }
         return request;
+    }
+
+
+    
+    private Student requireStudent() {
+        if (!(sessionService.getCurrentUser() instanceof Student)) {
+            throw new IllegalStateException("Only students can perform this action");
+        }
+        return (Student) sessionService.getCurrentUser();
+    }
+
+    private void ensureStaff() {
+        if (!(sessionService.getCurrentUser() instanceof CareerCenterStaff)) {
+            throw new IllegalStateException("Only Career Center Staff can perform this action");
+        }
     }
 }
 

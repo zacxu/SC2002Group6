@@ -1,6 +1,8 @@
 package controller;
 
-import entity.InternshipOpportunity;
+import entity.Internship;
+import entity.enums.InternshipLevel;
+import entity.enums.InternshipStatus;
 import util.Filter;
 
 import java.util.ArrayList;
@@ -15,45 +17,35 @@ import java.util.List;
 
 
 
-public class InternshipReportController {
-    
+ public class InternshipReportController {
+
     private final InternshipController internshipController = InternshipController.getInstance();
 
-    public List<InternshipOpportunity> generateReport(Filter filter) {
-        List<InternshipOpportunity> all = new ArrayList<>(internshipController.getAllInternships());
-        
+    public List<Internship> generateReport(Filter filter) {
+        List<Internship> all = new ArrayList<>(internshipController.getAllInternships());
         if (filter == null) {
             filter = new Filter();
         }
-
         return filter.apply(all);
     }
 
-
-
-    public List<InternshipOpportunity> generateReportByStatus(InternshipOpportunity.InternshipStatus status) {
+    public List<Internship> generateReportByStatus(InternshipStatus status) {
         Filter filter = new Filter();
         filter.setStatusFilter(status);
         return generateReport(filter);
     }
 
-
-
-    public List<InternshipOpportunity> generateReportByMajor(String major) {
+    public List<Internship> generateReportByMajor(String major) {
         Filter filter = new Filter();
         filter.setMajorFilter(major);
         return generateReport(filter);
     }
 
-
-
-    public List<InternshipOpportunity> generateReportByLevel(InternshipOpportunity.InternshipLevel level) {
+    public List<Internship> generateReportByLevel(InternshipLevel level) {
         Filter filter = new Filter();
         filter.setLevelFilter(level);
         return generateReport(filter);
     }
-
-
 }
 
 

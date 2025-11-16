@@ -20,51 +20,44 @@ import java.util.List;
  
 
 
-public class InternshipViewController {
+ public class InternshipViewController {
 
     private final InternshipController internshipController = InternshipController.getInstance();
     private final SessionController sessionController = SessionController.getInstance();
 
 
-    public InternshipOpportunity getInternshipDetails(String internshipId) {
+
+    public Internship getInternshipDetails(String internshipId) {
         return internshipController.getInternship(internshipId);
     }
 
 
+    public List<Internship> getVisibleInternshipsForStudent() {
 
-
-    public List<InternshipOpportunity> getVisibleInternshipsForStudent() {
         User currentUser = sessionController.getCurrentUser();
 
         if (!(currentUser instanceof Student)) {
             throw new IllegalStateException("Only students can view student-specific internships");
         }
-
-
         Student student = (Student) currentUser;
 
+        List<Internship> visible = internshipController.getVisibleInternships();
+        List<Internship> eligible = new ArrayList<>();
 
-        List<InternshipOpportunity> visible = internshipController.getVisibleInternships();
-        List<InternshipOpportunity> eligible = new ArrayList<>();
-
-
-
-        for (InternshipOpportunity internship : visible) {
+        for (Internship internship : visible) {
             if (Validator.isEligibleForInternship(student, internship) && internship.isOpenForApplication()) {
                 eligible.add(internship);
             }
         }
 
+
         return eligible;
     }
 
 
-
-
-    public List<InternshipOpportunity> getAllInternships() {
+    
+    public List<Internship> getAllInternships() {
         return new ArrayList<>(internshipController.getAllInternships());
     }
-    
 }
-
 

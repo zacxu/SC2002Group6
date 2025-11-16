@@ -2,7 +2,9 @@ package controller;
 
 import entity.*;
 import util.*;
-
+import repository.*;
+import service.AuthService;
+import service.SessionService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,12 +26,16 @@ import java.util.Map;
 
 
 
-public class AuthController {
+
+ public class AuthController implements AuthService {
 
     private static final AuthController INSTANCE = new AuthController();
 
-    private final Map<String, User> users = new HashMap<>();
-    private final SessionController sessionController = SessionController.getInstance();
+    private final SessionService sessionService = SessionController.getInstance();
+    private final UserRegistry userRegistry = UserRegistry.getInstance();
+    private final InternshipRegistry internshipRegistry = InternshipRegistry.getInstance();
+    private final ApplicationRegistry applicationRegistry = ApplicationRegistry.getInstance();
+    private final WithdrawalRegistry withdrawalRegistry = WithdrawalRegistry.getInstance();
 
     private boolean initialized = false;
 
@@ -38,127 +44,78 @@ public class AuthController {
     private AuthController() {
     }
 
+
     public static AuthController getInstance() {
         return INSTANCE;
     }
 
 
-    public synchronized void initialize()  {
+    public synchronized void initialize() throws IOException {
         if (initialized) {
             return;
         }
-        loadUsers();
+        userRegistry.initialize();
+        internshipRegistry.initialize();
+        applicationRegistry.initialize();
+        withdrawalRegistry.initialize();
         initialized = true;
     }
 
 
 
-    private void loadUsers()  {
 
-        users.clear();
-        try {
-            users.putAll(FileManager.loadUsers());
-
-       
-            List<Student> students = FileManager.loadStudents();
-            List<CareerCenterStaff> staff = FileManager.loadStaff();
-
-
-            for (Student student : students) {
-                users.put(student.getUserId(), student);
-            }
-
-
-            for (CareerCenterStaff staffMember : staff) {
-                users.put(staffMember.getUserId(), staffMember);
-            }
-
-
-            saveUsers();
-
-
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to load users", e);
-        }
-        
-            
-    }
-
-
-
-    
     private void ensureInitialized() {
         if (!initialized) {
-            
-            initialize();
-            
-            
-        }
-    }
-
-
-
-
-    public synchronized void saveUsers() {
-        
-        try {
-            FileManager.saveUsers(users);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to save users", e);
-        }
-        
-    }
-
-
-
-    
-
-    public User login(String userId, String password) {
-        ensureInitialized();
-
-        User user = users.get(userId);
-        if (user == null) {
-            throw new IllegalArgumentException("User ID not found");
-        }
-
-        if (user instanceof CompanyRepresentative) {
-            CompanyRepresentative companyRepresentative = (CompanyRepresentative) user;
-            if (!companyRepresentative.isApproved()) {
-                throw new IllegalStateException("Your account is pending approval from Career Center Staff");
+            try {
+                initialize();
+            } catch (IOException e) {
+                throw new RuntimeException("Unable to initialise system registries", e);
             }
         }
+    }
 
-        if (!user.verifyPassword(password)) {
-            throw new IllegalArgumentException("Incorrect password");
+
+
+
+
+
+    @Override
+    public User login(String userId, String password) {
+        ensureInitialized();
+        User user = userRegistry.authenticateUser(userId, password);
+        if (user == null) {
+            throw new IllegalArgumentException("Invalid credentials");
         }
-
-        sessionController.setCurrentUser(user);
+        if (user instanceof CompanyRepresentative && !((CompanyRepresentative) user).isApproved()) {
+            throw new IllegalStateException("Your account is pending approval from Career Center Staff");
+        }
+        sessionService.setCurrentUser(user);
         return user;
     }
 
 
 
+
+
+    @Override
     public void logout() {
         persistAll();
-        sessionController.logout();
+        sessionService.clearSession();
     }
 
 
-
+    @Override
     public void changePassword(String oldPassword, String newPassword) {
         ensureInitialized();
-
-        User currentUser = sessionController.getCurrentUser();
+        User currentUser = sessionService.getCurrentUser();
         if (currentUser == null) {
             throw new IllegalStateException("No user logged in");
         }
-
         currentUser.changePassword(oldPassword, newPassword);
-        saveUsers();
+        userRegistry.save();
     }
 
-
-
+   
     public CompanyRepresentative registerCompanyRep(String email,
                                                     String name,
                                                     String password,
@@ -166,65 +123,31 @@ public class AuthController {
                                                     String department,
                                                     String position) {
 
+
+
+
         ensureInitialized();
-
-        
-
-        if (users.containsKey(email)) {
+        if (userRegistry.getUserById(email) != null) {
             throw new IllegalArgumentException("User ID already exists");
         }
 
-        CompanyRepresentative companyRepresentative = new CompanyRepresentative(email, name, password, companyName, department, position);
-        
-        users.put(companyRepresentative.getUserId(), companyRepresentative);
 
-        saveUsers();
-        
-        return companyRepresentative;
+        CompanyRepresentative representative = new CompanyRepresentative(email, name, password, companyName, department, position);
+        userRegistry.addUser(representative);
+        userRegistry.save();
 
+        return representative;
     }
-
-
-
-
-
-    public User getUser(String userId) {
-        ensureInitialized();
-        return users.get(userId);
-    }
-
-    public Collection<User> getAllUsers() {
-        ensureInitialized();
-        return Collections.unmodifiableCollection(users.values());
-    }
-
-    public Map<String, User> getUsers() {
-        ensureInitialized();
-        return Collections.unmodifiableMap(users);
-    }
-
-    public void addUser(User user) {
-        ensureInitialized();
-        users.put(user.getUserId(), user);
-    }
-
-
-
 
     public List<CompanyRepresentative> getPendingCompanyReps() {
+
         ensureInitialized();
-        List<CompanyRepresentative> pending = new ArrayList<>();
 
-        for (User user : users.values()) {
-
-            if (user instanceof CompanyRepresentative) {
-                CompanyRepresentative companyRepresentative = (CompanyRepresentative) user;
-                if (!companyRepresentative.isApproved()) {
-                    pending.add(companyRepresentative);
-                }
-            }
-        }
-        return pending;
+        return userRegistry.getAllUsers().stream()
+            .filter(user -> user instanceof CompanyRepresentative)
+            .map(user -> (CompanyRepresentative) user)
+            .filter(rep -> !rep.isApproved())
+            .collect(Collectors.toList());
     }
 
 
@@ -232,62 +155,72 @@ public class AuthController {
 
     public void approveCompanyRepresentative(String userId) {
         ensureInitialized();
-        User user = users.get(userId);
+        User user = userRegistry.getUserById(userId);
 
         if (!(user instanceof CompanyRepresentative)) {
             throw new IllegalArgumentException("Company Representative not found");
         }
 
-        CompanyRepresentative representative = (CompanyRepresentative) user;
-        representative.setApproved(true);
-        saveUsers();
+        ((CompanyRepresentative) user).setApproved(true);
+        userRegistry.save();
     }
+
 
 
 
     public void rejectCompanyRepresentative(String userId) {
         ensureInitialized();
-        User removed = users.remove(userId);
 
-        if (removed == null || !(removed instanceof CompanyRepresentative)) {
+        User user = userRegistry.getUserById(userId);
+        if (!(user instanceof CompanyRepresentative)) {
             throw new IllegalArgumentException("Company Representative not found");
         }
-        saveUsers();
+        userRegistry.removeUser(userId);
+        userRegistry.save();
     }
 
 
 
+
+    public User getUser(String userId) {
+        ensureInitialized();
+        return userRegistry.getUserById(userId);
+    }
+
+
+    public Collection<User> getAllUsers() {
+        ensureInitialized();
+        return Collections.unmodifiableCollection(userRegistry.getAllUsers());
+    }
+
+
+    public void addUser(User user) {
+        ensureInitialized();
+        userRegistry.addUser(user);
+        userRegistry.save();
+    }
+    
+
     private void persistAll() {
-
         try {
-            saveUsers();
-
+            userRegistry.save();
         } catch (RuntimeException e) {
             System.err.println("Error saving users: " + e.getMessage());
         }
-
-
         try {
-            InternshipController.getInstance().save();
-
+            internshipRegistry.save();
         } catch (RuntimeException e) {
             System.err.println("Error saving internships: " + e.getMessage());
         }
-
-
         try {
-            ApplicationController.getInstance().save();
-
+            applicationRegistry.save();
         } catch (RuntimeException e) {
             System.err.println("Error saving applications: " + e.getMessage());
         }
-        
-
         try {
-            WithdrawalController.getInstance().save();
-
+            withdrawalRegistry.save();
         } catch (RuntimeException e) {
-            System.err.println("Error saving withdrawal requests: " + e.getMessage());
+            System.err.println("Error saving withdrawals: " + e.getMessage());
         }
     }
 }
