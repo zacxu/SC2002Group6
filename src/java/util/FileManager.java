@@ -18,7 +18,7 @@ import java.util.*;
 
 
 
-public class FileManager {
+ public class FileManager {
     private static final String RESOURCES_PATH = "src/resources/";
     private static final String DATA_PATH = "data/";
     private static final String STUDENTS_FILE = RESOURCES_PATH + "sample_student_list.csv";
@@ -212,7 +212,7 @@ public class FileManager {
 
 
     
-    public static void saveInternships(Map<String, InternshipOpportunity> internships) throws IOException {
+    public static void saveInternships(Map<String, Internship> internships) throws IOException {
         ensureDirectoryExists(DATA_PATH);
         Path path = Paths.get(INTERNSHIPS_FILE);
         
@@ -221,7 +221,7 @@ public class FileManager {
             writer.write("InternshipID,Title,Description,Level,PreferredMajor,OpeningDate,ClosingDate,Status," +
                         "CompanyName,CompanyRepID,TotalSlots,FilledSlots,Visible\n");
 
-            for (InternshipOpportunity internship : internships.values()) {
+            for (Internship internship : internships.values()) {
                 writer.write(String.format("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%d,%s\n",
 
                     internship.getInternshipId(),
@@ -247,8 +247,8 @@ public class FileManager {
 
 
 
-    public static Map<String, InternshipOpportunity> loadInternships() throws IOException {
-        Map<String, InternshipOpportunity> internships = new HashMap<>();
+    public static Map<String, Internship> loadInternships() throws IOException {
+        Map<String, Internship> internships = new HashMap<>();
         Path path = Paths.get(INTERNSHIPS_FILE);
         
         if (!Files.exists(path)) {
@@ -263,26 +263,28 @@ public class FileManager {
                 if (line.trim().isEmpty()) continue;
                 String[] parts = parseCSVLine(line);
 
-                if (parts.length >= 12) {
+                if (parts.length >= 13) {
 
                     String internshipId = parts[0];
                     String title = parts[1];
                     String description = parts[2];
-                    InternshipOpportunity.InternshipLevel level = InternshipOpportunity.InternshipLevel.valueOf(parts[3]);
+                    InternshipLevel level = InternshipLevel.valueOf(parts[3]);
                     String preferredMajor = parts[4];
                     LocalDate openingDate = DateUtils.parseDate(parts[5]);
                     LocalDate closingDate = DateUtils.parseDate(parts[6]);
-                    InternshipOpportunity.InternshipStatus status =  InternshipOpportunity.InternshipStatus.valueOf(parts[7]);
+                    InternshipStatus status =  InternshipStatus.valueOf(parts[7]);
                     String companyName = parts[8];
                     String companyRepId = parts[9];
                     int totalSlots = Integer.parseInt(parts[10]);
                     int filledSlots = Integer.parseInt(parts[11]);
                     boolean visible = Boolean.parseBoolean(parts[12]);
                     
-                    InternshipOpportunity internship = new InternshipOpportunity( internshipId, title, description, level, preferredMajor, openingDate, closingDate, companyName, companyRepId, totalSlots );
+                    Internship internship = new Internship( internshipId, title, description, level, preferredMajor, openingDate, closingDate, companyName, companyRepId, totalSlots );
                     
                     internship.setStatus(status);
-                    internship.setFilledSlots(filledSlots);
+                    while (internship.getFilledSlots() < filledSlots) {
+                        internship.incrementFilledSlots();
+                    }
                     internship.setVisible(visible);
                     
                     internships.put(internshipId, internship);
@@ -303,14 +305,15 @@ public class FileManager {
         Path path = Paths.get(APPLICATIONS_FILE);
         
         try (BufferedWriter writer = Files.newBufferedWriter(path)) {
-            writer.write("ApplicationID,StudentID,InternshipID,Status\n");
+            writer.write("ApplicationID,StudentID,InternshipID,Status,ApplicationDate\n");
 
             for (Application app : applications.values()) {
-                writer.write(String.format("%s,%s,%s,%s\n",
+                writer.write(String.format("%s,%s,%s,%s,%s\n",
                     app.getApplicationId(),
                     app.getStudentId(),
                     app.getInternshipId(),
-                    app.getStatus()
+                    app.getStatus(),
+                    DateUtils.formatDate(app.getApplicationDate())
 
                 ));
             }
@@ -337,15 +340,15 @@ public class FileManager {
 
             while ((line = reader.readLine()) != null) {
                 if (line.trim().isEmpty()) continue;
-                String[] parts = line.split(",");
-                if (parts.length >= 4) {
+                String[] parts = parseCSVLine(line);
+                if (parts.length >= 5) {
                     String applicationId = parts[0].trim();
                     String studentId = parts[1].trim();
                     String internshipId = parts[2].trim();
-
-                    Application.ApplicationStatus status = Application.ApplicationStatus.valueOf(parts[3].trim());
+                    ApplicationStatus status = ApplicationStatus.valueOf(parts[3].trim());
+                    LocalDate applicationDate = DateUtils.parseDate(parts[4].trim());
                     
-                    Application app = new Application(applicationId, studentId, internshipId);
+                    Application app = new Application(applicationId, studentId, internshipId, applicationDate);
                     app.setStatus(status);
                     applications.put(applicationId, app);
 
@@ -367,16 +370,18 @@ public class FileManager {
         Path path = Paths.get(WITHDRAWAL_REQUESTS_FILE);
         
         try (BufferedWriter writer = Files.newBufferedWriter(path)) {
-            writer.write("RequestID,ApplicationID,StudentID,InternshipID,Status,IsAfterPlacement\n");
+            writer.write("RequestID,ApplicationID,StudentID,InternshipID,Status,IsAfterPlacement,RequestDate,Reason\n");
             
             for (WithdrawalRequest request : requests.values()) {
-                writer.write(String.format("%s,%s,%s,%s,%s,%s\n",
+                writer.write(String.format("%s,%s,%s,%s,%s,%s,%s,%s\n",
                     request.getRequestId(),
                     request.getApplicationId(),
                     request.getStudentId(),
                     request.getInternshipId(),
                     request.getStatus(),
-                    request.isAfterPlacement()
+                    request.isAfterPlacement(),
+                    DateUtils.formatDate(request.getRequestDate()),
+                    escapeCSV(request.getReason())
                 ));
             }
         }
@@ -401,18 +406,20 @@ public class FileManager {
             while ((line = reader.readLine()) != null) {
 
                 if (line.trim().isEmpty()) continue;
-                String[] parts = line.split(",");
+                String[] parts = parseCSVLine(line);
 
-                if (parts.length >= 6) {
+                if (parts.length >= 8) {
                     String requestId = parts[0].trim();
                     String applicationId = parts[1].trim();
                     String studentId = parts[2].trim();
                     String internshipId = parts[3].trim();
                     
-                    WithdrawalRequest.WithdrawalStatus status = WithdrawalRequest.WithdrawalStatus.valueOf(parts[4].trim());
+                    WithdrawalStatus status = WithdrawalStatus.valueOf(parts[4].trim());
                     boolean isAfterPlacement = Boolean.parseBoolean(parts[5].trim());
+                    LocalDate requestDate = DateUtils.parseDate(parts[6].trim());
+                    String reason = parts[7].trim();
                     
-                    WithdrawalRequest request = new WithdrawalRequest( requestId, applicationId, studentId, internshipId, isAfterPlacement );
+                    WithdrawalRequest request = new WithdrawalRequest( requestId, applicationId, studentId, internshipId, isAfterPlacement, requestDate, reason );
                     
                     request.setStatus(status);
                     requests.put(requestId, request);
