@@ -268,8 +268,6 @@ import java.util.Scanner;
         }
 
         try {
-            List<Application> existingApplications = applicationController.getApplicationsByInternship(internshipId);
-            // controller now handles existence check internally; keeping list for context.
             internshipController.deleteInternship(internshipId);
             System.out.println("Internship deleted successfully!");
         } catch (Exception e) {
