@@ -4,10 +4,21 @@ import entity.User;
 import util.FileManager;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+
+
+/**
+ * Manages user persistence and retrieval for users
+ * 
+ * handles user submissions, lookups, and persistence
+ * 
+ * 
+ */
+
+
+
+
+
 
 public class UserRegistry {
     private static final UserRegistry INSTANCE = new UserRegistry();

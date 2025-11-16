@@ -5,14 +5,21 @@ import entity.enums.InternshipStatus;
 import util.FileManager;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-public class InternshipRegistry {
+
+/**
+ * Manages internship persistence and retrieval for internships
+ * 
+ * handles internship submissions, lookups, and persistence
+ * 
+ * 
+ */
+
+
+
+
+ public class InternshipRegistry {
     private static final InternshipRegistry INSTANCE = new InternshipRegistry();
 
     private final Map<String, Internship> internships = new HashMap<>();

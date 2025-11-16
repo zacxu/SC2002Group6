@@ -5,12 +5,19 @@ import util.FileManager;
 
 import java.io.IOException;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
+
+/**
+ * Manages withdrawal request persistence and retrieval for withdrawal requests
+ * 
+ * handles withdrawal request submissions, lookups, and persistence
+ * 
+ * 
+ */
+
+
+
 
 public class WithdrawalRegistry {
     private static final WithdrawalRegistry INSTANCE = new WithdrawalRegistry();

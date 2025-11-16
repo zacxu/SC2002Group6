@@ -5,14 +5,20 @@ import util.FileManager;
 
 import java.io.IOException;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-public class ApplicationRegistry {
+
+/**
+ * Manages application persistence and retrieval for applicaitons 
+ * 
+ * handles application submissions, lookups, and persistence
+ * 
+ * 
+ */
+
+
+
+ public class ApplicationRegistry {
     private static final ApplicationRegistry INSTANCE = new ApplicationRegistry();
 
     private final Map<String, Application> applications = new HashMap<>();
