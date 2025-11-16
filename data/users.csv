@@ -1,9 +1,9 @@
 UserType,UserID,Name,Password,AdditionalInfo
-CareerCenterStaff,tan002,Mr. Tan Boon Kiat,Career Center Staff,CCDS
-Student,U2310001A,Tan Wei Ling,Computer Science,2,tan001@e.ntu.edu.sg
-Student,U2310002B,Ng Jia Hao,Data Science & AI,3,ng002@e.ntu.edu.sg
-Student,U2310003C,Lim Yi Xuan,Computer Engineering,4,lim003@e.ntu.edu.sg
-Student,U2310004D,Chong Zhi Hao,Information Engineering & Media,1,chong004@e.ntu.edu.sg
-Student,U2310005E,Wong Shu Hui,Computer Science,3,wong005@e.ntu.edu.sg
-CareerCenterStaff,lee003,Ms. Lee Mei Ling,Career Center Staff,CCDS
-CareerCenterStaff,sng001,Dr. Sng Hui Lin,Career Center Staff,CCDS
+CareerCenterStaff,tan002,Mr. Tan Boon Kiat,password,CCDS
+Student,U2310001A,Tan Wei Ling,password,2,Computer Science
+Student,U2310002B,Ng Jia Hao,password,3,Data Science & AI
+Student,U2310003C,Lim Yi Xuan,password,4,Computer Engineering
+Student,U2310004D,Chong Zhi Hao,password,1,Information Engineering & Media
+Student,U2310005E,Wong Shu Hui,password,3,Computer Science
+CareerCenterStaff,lee003,Ms. Lee Mei Ling,password,CCDS
+CareerCenterStaff,sng001,Dr. Sng Hui Lin,password,CCDS
